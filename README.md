@@ -1,0 +1,1 @@
+# mkinicpio-archive-tmpfs
