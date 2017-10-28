@@ -5,49 +5,59 @@
 archivetmpfs_mount_handler_2=""
 
 archivetmpfs_mount_handler_err() {
-   msg "Leaving filesystem mounted in $temproot"
    echo "You are now being dropped into an emergency shell."
    launch_interactive_shell
 }
 
 archivetmpfs_mount_handler() {
-   local temproot
-   temproot="/temp_root"
-   msg "Mounting root to '$temproot'"
-   mkdir -p "$temproot"
-   "$archivetmpfs_mount_handler_2" "$temproot"
-
-   local dest path 
+   local dest path
    dest="$1"
    path="$archivetmpfs"
 
    msg "Mounting tmpfs to '$dest'"
-   mount -t tmpfs -o size=100% none "$dest"
+   if ! mount -t tmpfs -o size=100% none "$dest"; then
+      err "Error mounting tmpfs to '$dest'"
+      archivetmpfs_mount_handler_err
+   fi
 
    case "$path" in
    /*)
+      # local path inside mount_handler mounted directory
+      local temproot
+      temproot="/temp_root"
+      msg "Mounting root to '$temproot'"
+      mkdir -p "$temproot"
+      "$archivetmpfs_mount_handler_2" "$temproot"
+
       local apath
       apath="${temproot}/${path}"
       if [ -d "$apath" ]; then
          msg "Found directory '$path'."
          msg "Copying directory content into tmpfs dir."
          if ! cp -rfa "$apath"/* "$dest"; then
-            err "Error copying into tmpfs dir."
+            err "Error copying '$path' into '$dest' tmpfs dir."
+            msg "Leaving filesystem mounted in $temproot"
             archivetmpfs_mount_handler_err
          fi
       elif [ -f "$apath" ]; then
          msg "Found file '$path'."
          msg "Uncompressing archive to tmpfs dir."
          if ! tar -axf "$apath" -C "$dest"; then
-            err "Error uncompressing the archive"
+            err "Error uncompressing the archive '$path' into '$dest' tmpfs dir."
+            msg "Leaving filesystem mounted in $temproot"
             archivetmpfs_mount_handler_err
          fi
       else
-         err "Path '$path' not found"
+         err "Path '$path' not found inside '$temproot' root device."
+         msg "Leaving filesystem mounted in $temproot"
          archivetmpfs_mount_handler_err
       fi
+
+      msg "Unmoount"
+      umount "$temproot"
       ;;
-   url:*)
+   https://*|http://*|ftp://*)
+      # url link - download using curl, unpack using tar
       local out
       out="$1/$(basename "$path")"
       msg "Downloading file '$path' to '$out'"
@@ -66,9 +76,6 @@ archivetmpfs_mount_handler() {
       archivetmpfs_mount_handler_err
       ;;
    esac
-
-   msg "Unmounting root"
-   umount "$temproot"
 }
 
 run_hook() {
