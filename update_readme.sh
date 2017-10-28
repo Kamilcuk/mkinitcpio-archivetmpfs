@@ -1,20 +1,17 @@
 #!/bin/bash
 set -euo pipefail
 
-beg='### help start'
-end='### help stop'
+beg='###### help start'
+end='###### help stop'
+f=README.md
 
-tmp=$(mktemp)
-trap 'rm -f $tmp' EXIT
-
-(
+cp $f $f.bak
+awk -v data="$(
 	. usr/lib/initcpio/install/archivetmpfs
-	help
-) > $tmp
-
-awk -v data="$(<$tmp)" '
+        help
+)" '
 BEGIN {p=1}
 /'"$beg"'/ {print; print "\n```" data "\n```\n"; p=0}
 /'"$end"'/ {p=1}
-p' README.md | sponge README.md
+p' $f | sponge $f
 

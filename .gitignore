@@ -2,3 +2,4 @@ pkg
 src
 mkinitcpio-archivetmpfs
 *.pkg.tar.xz
+.bak
