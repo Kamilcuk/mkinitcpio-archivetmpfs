@@ -1,0 +1,80 @@
+#!/bin/bash
+# Author: Kamil Cukrowski
+# License: Jointly under MIT License and Beerware license
+
+archivetmpfs_mount_handler_2=""
+
+archivetmpfs_mount_handler_err() {
+   local -a temproot
+   msg "Leaving filesystem mounted in $temproot"
+   echo "You are now being dropped into an emergency shell."
+   launch_interactive_shell
+}
+
+archivetmpfs_mount_handler() {
+   local -g archivetmpfs_mount_handler_2 archivetmpfs
+   local root path temproot
+   root="$1"
+   path="$archivetmpfs"
+   temproot="/temp_root"
+   
+   msg "Mounting root to '$temproot'"
+   mkdir -p "$temproot"
+   "$archivetmpfs_mount_handler_2" "$temproot"
+
+   msg "Mounting tmpfs to '$root'"
+   mount -t tmpfs -o size=100% none "$root"
+
+   case "$path" in
+   /*)
+      local apath
+      apath="${temproot}/${path}"
+      if [ -d "$apath" ]; then
+         msg "Found directory '$path'."
+         msg "Copying directory content into tmpfs dir."
+         if ! cp -rfa "$apath"/* "$root"; then
+            err "Error copying into tmpfs dir."
+            archivetmpfs_mount_handler_err
+         fi
+      elif [ -f "$apath" ]; then
+         msg "Found file '$path'."
+         msg "Uncompressing archive to tmpfs dir."
+         if ! tar -axf "$apath" -C "$root"; then
+            err "Error uncompressing the archive"
+            archivetmpfs_mount_handler_err
+         fi
+      else
+         err "Path '$path' not found"
+         archivetmpfs_mount_handler_err
+      fi
+      ;;
+   url:*)
+      local out
+      out="$1/$(basename "$path")"
+      msg "Downloading file '$path' to '$out'"
+      if ! curl -O "$out" "$path"; then
+         err "Error downloading"
+         archivetmpfs_mount_handler_err
+      fi
+      msg "Uncompressing downloaded file '$out' file to tmpfs dir."
+      if ! tar -axf "$out" -C "$root"; then
+        err "Error in uncompressing the archive"
+        archivetmpfs_mount_handler_err
+      fi
+      ;;
+   *)
+      err "Unknown path '$path'"
+      archivetmpfs_mount_handler_err
+      ;;
+   esac
+
+   msg "Unmounting root"
+   umount "$temproot"
+}
+
+run_hook() {
+   if [ -n "${archivetmpfs}" ]; then
+      archivetmpfs_mount_handler_2="${mount_handler}"
+      mount_handler="archivetmpfs_mount_handler"
+   fi
+}
