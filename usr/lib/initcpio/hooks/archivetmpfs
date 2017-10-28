@@ -1,29 +1,28 @@
-#!/bin/bash
+#!/bin/sh
 # Author: Kamil Cukrowski
 # License: Jointly under MIT License and Beerware license
 
 archivetmpfs_mount_handler_2=""
 
 archivetmpfs_mount_handler_err() {
-   local -a temproot
    msg "Leaving filesystem mounted in $temproot"
    echo "You are now being dropped into an emergency shell."
    launch_interactive_shell
 }
 
 archivetmpfs_mount_handler() {
-   local -g archivetmpfs_mount_handler_2 archivetmpfs
-   local root path temproot
-   root="$1"
-   path="$archivetmpfs"
+   local temproot
    temproot="/temp_root"
-   
    msg "Mounting root to '$temproot'"
    mkdir -p "$temproot"
    "$archivetmpfs_mount_handler_2" "$temproot"
 
-   msg "Mounting tmpfs to '$root'"
-   mount -t tmpfs -o size=100% none "$root"
+   local dest path 
+   dest="$1"
+   path="$archivetmpfs"
+
+   msg "Mounting tmpfs to '$dest'"
+   mount -t tmpfs -o size=100% none "$dest"
 
    case "$path" in
    /*)
@@ -32,14 +31,14 @@ archivetmpfs_mount_handler() {
       if [ -d "$apath" ]; then
          msg "Found directory '$path'."
          msg "Copying directory content into tmpfs dir."
-         if ! cp -rfa "$apath"/* "$root"; then
+         if ! cp -rfa "$apath"/* "$dest"; then
             err "Error copying into tmpfs dir."
             archivetmpfs_mount_handler_err
          fi
       elif [ -f "$apath" ]; then
          msg "Found file '$path'."
          msg "Uncompressing archive to tmpfs dir."
-         if ! tar -axf "$apath" -C "$root"; then
+         if ! tar -axf "$apath" -C "$dest"; then
             err "Error uncompressing the archive"
             archivetmpfs_mount_handler_err
          fi
@@ -57,7 +56,7 @@ archivetmpfs_mount_handler() {
          archivetmpfs_mount_handler_err
       fi
       msg "Uncompressing downloaded file '$out' file to tmpfs dir."
-      if ! tar -axf "$out" -C "$root"; then
+      if ! tar -axf "$out" -C "$dest"; then
         err "Error in uncompressing the archive"
         archivetmpfs_mount_handler_err
       fi
